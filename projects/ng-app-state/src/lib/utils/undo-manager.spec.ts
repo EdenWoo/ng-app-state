@@ -7,6 +7,7 @@ import { UndoManager, UndoOrRedo } from "./undo-manager";
 
 class State {
   counter = 0;
+  object?: any;
 }
 
 class TestImpl extends UndoManager<State, State> {
@@ -23,6 +24,10 @@ class TestImpl extends UndoManager<State, State> {
         this.pushCurrentState();
       }
     });
+  }
+
+  areUndoStatesEqual(s1: State, s2: State) {
+    return super.areUndoStatesEqual(s1, s2);
   }
 
   protected extractUndoState(state: State) {
@@ -302,6 +307,10 @@ describe("UndoManager", () => {
   });
 
   describe(".pushCurrentState()", () => {
+    beforeEach(() => {
+      undoManager.areUndoStatesEqual = () => false;
+    });
+
     it("adds to the stack", () => {
       undoManager.pushCurrentState();
       expectStack(0, 0);
@@ -484,6 +493,50 @@ describe("UndoManager", () => {
       store("counter").set(1);
       undoManager.undoStack.splice(0, 9999);
       expectStack(0, 1);
+    });
+  });
+
+  describe(".areUndoStatesEqual()", () => {
+    it("controls whether undo states are actually pushed", () => {
+      undoManager.areUndoStatesEqual = () => false;
+      undoManager.pushCurrentState();
+      expectStack(0, 0);
+
+      undoManager.areUndoStatesEqual = () => true;
+      undoManager.pushCurrentState();
+      expectStack(0, 0);
+
+      undoManager.areUndoStatesEqual = () => false;
+      undoManager.pushCurrentState();
+      expectStack(0, 0, 0);
+
+      undoManager.areUndoStatesEqual = () => true;
+      undoManager.pushCurrentState();
+      expectStack(0, 0, 0);
+    });
+
+    it("uses `===` by default", () => {
+      const obj1 = { a: 1 };
+      const obj2 = { a: 1 };
+      store("object").set(obj1);
+      expectStack(0, 0);
+
+      store("object").set(obj2);
+      expectStack(0, 0, 0);
+
+      undoManager.pushCurrentState();
+      expectStack(0, 0, 0);
+    });
+
+    it("is not used if nothing is yet in the stack", () => {
+      const spy = jasmine.createSpy().and.returnValue(false);
+      undoManager.areUndoStatesEqual = spy;
+      store("counter").set(1);
+      expect(spy).toHaveBeenCalled();
+      spy.calls.reset();
+
+      undoManager.reset();
+      expect(spy).not.toHaveBeenCalled();
     });
   });
 

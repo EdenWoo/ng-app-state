@@ -57,10 +57,16 @@ export abstract class UndoManager<StateType, UndoStateType> {
    * using `redo()` are discarded.
    */
   pushCurrentState() {
+    let nextState = this.extractUndoState(this.store.state());
+    if (
+      this.currentStateIndex >= 0 &&
+      this.areUndoStatesEqual(this.stack[this.currentStateIndex], nextState)
+    ) {
+      return;
+    }
+
     ++this.currentStateIndex;
-    this.stack[this.currentStateIndex] = this.extractUndoState(
-      this.store.state(),
-    );
+    this.stack[this.currentStateIndex] = nextState;
     this.dropRedoHistory();
 
     while (this.stack.length > 1 && this.isOverSize(this.stack.length)) {
@@ -148,6 +154,13 @@ export abstract class UndoManager<StateType, UndoStateType> {
     undoOrRedo: UndoOrRedo,
     oldState: UndoStateType,
   ): void;
+
+  /**
+   * Used to determine whether `.pushUndoState()` actually does anything - if the state being pushed is "equal" to the current state according to this method, it will not be pushed. By default this uses `===`; subclasses can override this to tailor the behavior.
+   */
+  protected areUndoStatesEqual(s1: UndoStateType, s2: UndoStateType) {
+    return s1 === s2;
+  }
 
   private dropRedoHistory() {
     this.stack.splice(this.currentStateIndex + 1, this.stack.length);
